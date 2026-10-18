@@ -27,8 +27,6 @@ jobs:
 
           rm -rf "$THEOS"
           git clone --depth=1 --recursive https://github.com/theos/theos.git "$THEOS"
-
-          # Submodule placeholder is NOT a real directory — wipe and recreate
           rm -rf "$THEOS/sdks"
           mkdir -p "$THEOS/sdks"
 
@@ -44,45 +42,32 @@ jobs:
           fi
 
           if ! ls "$THEOS/sdks"/*.sdk >/dev/null 2>&1; then
-            echo "Trying install-sdk latest…"
             "$THEOS/bin/install-sdk" latest || true
           fi
 
-          echo "=== SDKs ==="
           ls -la "$THEOS/sdks"
           test -n "$(ls -A "$THEOS/sdks"/*.sdk 2>/dev/null || true)" \
-            || { echo "::error::No iPhoneOS SDK installed"; exit 1; }
+            || { echo "::error::No iPhoneOS SDK"; exit 1; }
 
-          # Pick highest iPhoneOS SDK version number for TARGET
           SDK_VER=$(ls -1 "$THEOS/sdks" | grep -E '^iPhoneOS[0-9]' | sed 's/iPhoneOS//;s/\.sdk//' | sort -V | tail -1)
-          echo "Detected SDK version: $SDK_VER"
           echo "SDK_VER=$SDK_VER" >> "$GITHUB_ENV"
           rm -rf "$TMP"
 
-      - name: Build package
+      - name: Build arm64 package
         run: |
           set -euo pipefail
           export THEOS="${GITHUB_WORKSPACE}/theos"
-          # Pin TARGET to a real SDK that exists on the runner
           export TARGET="iphone:clang:${SDK_VER}:12.0"
-          echo "Building with TARGET=$TARGET"
-          make clean
-          make package FINALPACKAGE=1 2>&1
-
-      - name: Show dylib inside deb
-        if: success()
-        run: |
-          set -euo pipefail
+          export ARCHS=arm64
+          echo "TARGET=$TARGET ARCHS=$ARCHS"
+          # control Architecture: iphoneos-arm64 → output *iphoneos-arm64.deb
+          make clean package FINALPACKAGE=1 2>&1
+          echo "=== packages ==="
           ls -la packages/
-          deb=$(ls packages/*.deb | head -1)
-          mkdir -p /tmp/tfout
-          cd /tmp/tfout
-          ar x "$GITHUB_WORKSPACE/$deb" || true
-          tar xf data.tar.* 2>/dev/null || tar xf data.tar 2>/dev/null || true
-          find /tmp/tfout -type f | head -50
+          ls packages/*arm64*.deb
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TeleFocus-deb
-          path: packages/*.deb
+          name: TeleFocus-iphoneos-arm64-deb
+          path: packages/*arm64*.deb
           if-no-files-found: error
