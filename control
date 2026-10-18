@@ -1,0 +1,9 @@
+Package: com.telefocus.tweak
+Name: TeleFocus
+Depends: mobilesubstrate (>= 0.9.5000), firmware (>= 12.0)
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Telegram-only performance focus. Cuts UI weight inside Telegram and freezes other user apps while Telegram is foreground. Credit: Kwar Nu.
+Maintainer: Kwar Nu
+Author: Kwar Nu
+Section: Tweaks
