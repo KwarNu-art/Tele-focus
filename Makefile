@@ -1,4 +1,3 @@
-# SDK version is injected by CI via THEOS_SDK_VERSION, or defaults to latest folder name logic
 export TARGET ?= iphone:clang:14.5:12.0
 ARCHS := arm64
 INSTALL_TARGET_PROCESSES := SpringBoard Telegraph
