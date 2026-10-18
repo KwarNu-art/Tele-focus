@@ -1,0 +1,60 @@
+name: Build TeleFocus
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools
+        run: |
+          brew install make ldid xz
+          echo "$(brew --prefix make)/libexec/gnubin" >> "$GITHUB_PATH"
+
+      - name: Theos + SDKs
+        run: |
+          set -euo pipefail
+          export THEOS="${GITHUB_WORKSPACE}/theos"
+          rm -rf "$THEOS"
+          git clone --depth=1 --recursive https://github.com/theos/theos.git "$THEOS"
+          # FIX: sdks submodule is not a real directory
+          rm -rf "$THEOS/sdks" && mkdir -p "$THEOS/sdks"
+          TMP=$(mktemp -d)
+          curl -L -o "$TMP/sdks.zip" https://github.com/theos/sdks/archive/refs/heads/master.zip
+          unzip -q "$TMP/sdks.zip" -d "$TMP"
+          cp -R "$TMP"/sdks-master/*.sdk "$THEOS/sdks/" 2>/dev/null || \
+            find "$TMP" -type d -name "*.sdk" -maxdepth 3 -exec cp -R {} "$THEOS/sdks/" \;
+          if ! ls "$THEOS/sdks"/*.sdk >/dev/null 2>&1; then
+            "$THEOS/bin/install-sdk" latest
+          fi
+          ls -la "$THEOS/sdks"
+
+      - name: Build package
+        run: |
+          export THEOS="${GITHUB_WORKSPACE}/theos"
+          make clean package FINALPACKAGE=1
+
+      - name: List output (dylib is inside the deb)
+        run: |
+          set -euo pipefail
+          ls -la packages/
+          deb=$(ls packages/*.deb | head -1)
+          echo "Extracting dylib from $deb …"
+          mkdir -p /tmp/tfout
+          dpkg-deb -x "$deb" /tmp/tfout 2>/dev/null || (
+            cd /tmp/tfout && ar x "$OLDPWD/$deb" && tar xf data.tar.* 
+          )
+          find /tmp/tfout -name '*.dylib' -o -name 'TeleFocus*' | head -40
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TeleFocus-deb
+          path: packages/*.deb
+          if-no-files-found: error
